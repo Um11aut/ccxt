@@ -17,62 +17,70 @@ import (
 	"time"
 )
 
+// Base Map for storing all the markets instead of loading it each time newly
+type MarketsMap struct {
+	Markets 	 map[string]interface{}
+}
+var globalMarkets map[string]MarketsMap = map[string]MarketsMap{}
+var globalMarketsMu sync.Mutex = sync.Mutex{}
+
+
 type Exchange struct {
-	marketsMutex          sync.Mutex
-	cachedCurrenciesMutex sync.Mutex
-	loadMu        sync.Mutex
-	marketsLoading		bool
-	marketsLoaded bool
-	loadMarketsSubscribers   []chan interface{}
-	Itf                   interface{}
-	DerivedExchange       IDerivedExchange
-	methodCache           sync.Map
-	cacheLoaded           bool
-	Version               string
-	Id                    string
-	Name                  string
-	Options               map[string]interface{}
-	Has                   map[string]interface{}
-	Api                   map[string]interface{}
-	TransformedApi        map[string]interface{}
-	Markets               map[string]interface{}
-	Markets_by_id         *sync.Map
-	Currencies_by_id      *sync.Map
-	Currencies            map[string]interface{}
-	RequiredCredentials   map[string]interface{}
-	HttpExceptions        map[string]interface{}
-	MarketsById           map[string]interface{}
-	Timeframes            map[string]interface{}
-	Features              map[string]interface{}
-	Exceptions            map[string]interface{}
-	Precision             map[string]interface{}
-	Urls                  interface{}
-	UserAgents            map[string]interface{}
-	Timeout               int64
-	MAX_VALUE             float64
-	RateLimit             float64
-	TokenBucket           map[string]interface{}
-	Throttler             Throttler
-	NewUpdates            bool
-	Alias                 bool
-	Verbose               bool
-	UserAgent             string
-	EnableRateLimit       bool
-	Url                   string
-	Hostname              string
-	BaseCurrencies        map[string]interface{}
-	QuoteCurrencies       map[string]interface{}
-	ReloadingMarkets      bool
-	MarketsLoading        bool
-	Symbols               []string
-	Codes                 []string
-	Ids                   []string
-	CommonCurrencies      map[string]interface{}
-	PrecisionMode         int
-	Limits                map[string]interface{}
-	Fees                  map[string]interface{}
-	CurrenciesById        map[string]interface{}
-	ReduceFees            bool
+	marketsMutex           sync.Mutex
+	cachedCurrenciesMutex  sync.Mutex
+	loadMu        		   sync.Mutex
+	marketsLoading		   bool
+	marketsLoaded          bool
+	loadMarketsSubscribers []chan interface{}
+	Itf                    interface{}
+	DerivedExchange        IDerivedExchange
+	methodCache            sync.Map
+	cacheLoaded            bool
+	Version                string
+	Id                     string
+	Name                   string
+	Options                map[string]interface{}
+	Has                    map[string]interface{}
+	Api                    map[string]interface{}
+	TransformedApi         map[string]interface{}
+	Markets                map[string]interface{}
+	Markets_by_id          *sync.Map
+	Currencies_by_id       *sync.Map
+	Currencies             map[string]interface{}
+	RequiredCredentials    map[string]interface{}
+	HttpExceptions         map[string]interface{}
+	MarketsById            map[string]interface{}
+	Timeframes             map[string]interface{}
+	Features               map[string]interface{}
+	Exceptions             map[string]interface{}
+	Precision              map[string]interface{}
+	Urls                   interface{}
+	UserAgents             map[string]interface{}
+	Timeout                int64
+	MAX_VALUE              float64
+	RateLimit              float64
+	TokenBucket            map[string]interface{}
+	Throttler              Throttler
+	NewUpdates             bool
+	Alias                  bool
+	Verbose                bool
+	UserAgent              string
+	EnableRateLimit        bool
+	Url                    string
+	Hostname               string
+	BaseCurrencies         map[string]interface{}
+	QuoteCurrencies        map[string]interface{}
+	ReloadingMarkets       bool
+	MarketsLoading         bool
+	Symbols                []string
+	Codes                  []string
+	Ids                    []string
+	CommonCurrencies       map[string]interface{}
+	PrecisionMode          int
+	Limits                 map[string]interface{}
+	Fees                   map[string]interface{}
+	CurrenciesById         map[string]interface{}
+	ReduceFees             bool
 
 	AccountsById interface{}
 	Accounts     interface{}
@@ -330,6 +338,19 @@ func (this *Exchange) LoadMarketsHelper(params ...interface{}) <-chan interface{
 			this.cachedCurrenciesMutex.Unlock()
 		}
 
+		if IsTrue(this.SafeBool(this.Options, "useGlobalMarkets")) {
+			markets, ok := globalMarkets[this.Name]
+			if ok {
+				if !reload {
+					this.marketsMutex.Lock()
+					result := this.SetMarkets(markets, currencies)
+					this.marketsMutex.Unlock()
+					ch <- result
+					return
+				}
+			}
+		}
+
 		markets := <-this.DerivedExchange.FetchMarkets(params)
 		PanicOnError(markets)
 
@@ -341,6 +362,14 @@ func (this *Exchange) LoadMarketsHelper(params ...interface{}) <-chan interface{
 		this.marketsMutex.Lock()
 		result := this.SetMarkets(markets, currencies)
 		this.marketsMutex.Unlock()
+
+		if IsTrue(this.SafeBool(this.Options, "useGlobalMarkets")) {
+			globalMarketsMu.Lock()
+			globalMarkets[this.Name] = MarketsMap{
+				Markets: this.Markets,
+			}
+			globalMarketsMu.Unlock()
+		}
 
 		ch <- result
 	}()
