@@ -22,7 +22,7 @@ type MarketsMap struct {
 	Markets 	 map[string]interface{}
 }
 var globalMarkets map[string]MarketsMap = map[string]MarketsMap{}
-var globalMarketsMu sync.Mutex = sync.Mutex{}
+var globalMarketsMu sync.RWMutex = sync.RWMutex{}
 
 
 type Exchange struct {
@@ -339,7 +339,9 @@ func (this *Exchange) LoadMarketsHelper(params ...interface{}) <-chan interface{
 		}
 
 		if IsTrue(this.SafeBool(this.Options, "useGlobalMarkets")) {
+			globalMarketsMu.RLock()
 			markets, ok := globalMarkets[this.Name]
+			globalMarketsMu.RUnlock()
 			if ok {
 				if !reload {
 					this.marketsMutex.Lock()
@@ -363,6 +365,7 @@ func (this *Exchange) LoadMarketsHelper(params ...interface{}) <-chan interface{
 		result := this.SetMarkets(markets, currencies)
 		this.marketsMutex.Unlock()
 
+		// In case if any markets were updated
 		if IsTrue(this.SafeBool(this.Options, "useGlobalMarkets")) {
 			globalMarketsMu.Lock()
 			globalMarkets[this.Name] = MarketsMap{
