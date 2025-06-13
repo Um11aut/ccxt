@@ -345,7 +345,7 @@ func (this *Exchange) LoadMarketsHelper(params ...interface{}) <-chan interface{
 			if ok {
 				if !reload {
 					this.marketsMutex.Lock()
-					result := this.SetMarkets(markets, currencies)
+					result := this.SetMarkets(markets.Markets, currencies)
 					this.marketsMutex.Unlock()
 					ch <- result
 					return
