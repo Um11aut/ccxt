@@ -18,7 +18,7 @@ import (
 )
 
 type Exchange struct {
-	MarketsMutex *sync.Mutex
+	marketsMutex sync.Mutex
 	// cachedCurrenciesMutex  sync.Mutex
 	loadMu                 sync.Mutex
 	marketsLoading         bool
@@ -137,7 +137,7 @@ type Exchange struct {
 
 	Twofa interface{}
 
-	// WS
+	//WS
 	Ohlcvs     interface{}
 	Trades     interface{}
 	Tickers    interface{}
@@ -156,18 +156,14 @@ type Exchange struct {
 	IsSandboxModeEnabled bool
 }
 
-const (
-	DECIMAL_PLACES     int = 2
-	SIGNIFICANT_DIGITS int = 3
-	TICK_SIZE          int = 4
-)
+const DECIMAL_PLACES int = 2
+const SIGNIFICANT_DIGITS int = 3
+const TICK_SIZE int = 4
 
 const TRUNCATE int = 0
 
-const (
-	NO_PADDING        = 5
-	PAD_WITH_ZERO int = 6
-)
+const NO_PADDING = 5
+const PAD_WITH_ZERO int = 6
 
 // var ROUND int = 0
 
@@ -176,12 +172,12 @@ func (this *Exchange) InitParent(userConfig map[string]interface{}, exchangeConf
 	if this.Options == nil {
 		this.Options = &sync.Map{} // by default sync.map is nil
 	}
-	describeValues := this.Describe()
+	var describeValues = this.Describe()
 	if userConfig == nil {
 		userConfig = map[string]interface{}{}
 	}
 
-	extendedProperties := this.DeepExtend(describeValues, exchangeConfig)
+	var extendedProperties = this.DeepExtend(describeValues, exchangeConfig)
 	extendedProperties = this.DeepExtend(extendedProperties, userConfig)
 	this.Itf = itf
 	// this.id = SafeString(extendedProperties, "id", "").(string)
@@ -214,12 +210,9 @@ func (this *Exchange) InitParent(userConfig map[string]interface{}, exchangeConf
 }
 
 func (this *Exchange) Init(userConfig map[string]interface{}) {
+
 	if this.Options == nil {
 		this.Options = &sync.Map{} // by default sync.map is nil
-	}
-
-	if this.MarketsMutex == nil {
-		this.MarketsMutex = &sync.Mutex{}
 	}
 	// to do
 }
@@ -304,6 +297,7 @@ func (this *Exchange) LoadMarkets(params ...interface{}) <-chan interface{} {
 
 	this.loadMu.Unlock()
 	return ch
+
 }
 
 func (this *Exchange) LoadMarketsHelper(params ...interface{}) <-chan interface{} {
@@ -320,12 +314,12 @@ func (this *Exchange) LoadMarketsHelper(params ...interface{}) <-chan interface{
 		params := GetArg(params, 1, map[string]interface{}{})
 		this.WarmUpCache()
 		if !reload {
-			if len(this.Markets) > 0 {
+			if this.Markets != nil && len(this.Markets) > 0 {
 				if this.Markets_by_id == nil && len(this.Markets) > 0 {
 					// Only lock when writing
-					this.MarketsMutex.Lock()
+					this.marketsMutex.Lock()
 					result := this.SetMarkets(this.Markets, nil)
-					this.MarketsMutex.Unlock()
+					this.marketsMutex.Unlock()
 					ch <- result
 					return
 				}
@@ -354,9 +348,9 @@ func (this *Exchange) LoadMarketsHelper(params ...interface{}) <-chan interface{
 		// this.cachedCurrenciesMutex.Unlock()
 
 		// Lock only for writing
-		this.MarketsMutex.Lock()
+		this.marketsMutex.Lock()
 		result := this.SetMarkets(markets, currencies)
-		this.MarketsMutex.Unlock()
+		this.marketsMutex.Unlock()
 
 		ch <- result
 	}()
@@ -1193,7 +1187,6 @@ func (this *Exchange) GetZKContractSignatureObj(seed interface{}, params interfa
 	}()
 	return ch
 }
-
 func (this *Exchange) GetZKTransferSignatureObj(seed interface{}, params interface{}) <-chan interface{} {
 	ch := make(chan interface{})
 
